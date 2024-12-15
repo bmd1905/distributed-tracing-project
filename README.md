@@ -10,6 +10,12 @@ This project implements a distributed tracing system using FastAPI, OpenTelemetr
 - **Service A**: Calls Service B and processes requests.
 - **Service B**: Processes requests and returns responses.
 
+<!-- Start of Selection -->
+<p align="center">
+    <img src="./assets/diagram.png" width="30%" height="30%">
+</p>
+<!-- End of Selection -->
+
 ## Prerequisites
 
 - Docker and Docker Compose

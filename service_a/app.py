@@ -1,3 +1,6 @@
+import os
+import time
+
 import requests
 from fastapi import FastAPI
 from opentelemetry import trace
@@ -10,18 +13,19 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.trace.status import Status, StatusCode
-import os
 
 # Configure tracing with sampling
 sampler = ParentBasedTraceIdRatio(0.3)  # Sample 30% of traces
 trace.set_tracer_provider(
     TracerProvider(
-        resource=Resource.create({
-            "service.name": "service-a",
-            "service.version": "0.1.0",
-            "deployment.environment": os.getenv("DEPLOYMENT_ENV", "development")
-        }),
-        sampler=sampler
+        resource=Resource.create(
+            {
+                "service.name": "service-a",
+                "service.version": "0.1.0",
+                "deployment.environment": os.getenv("DEPLOYMENT_ENV", "development"),
+            }
+        ),
+        sampler=sampler,
     )
 )
 jaeger_exporter = JaegerExporter(agent_host_name="jaeger", agent_port=6831)
@@ -39,28 +43,29 @@ def call_service_b():
     with tracer.start_as_current_span("call_service_b") as span:
         try:
             # Add meaningful attributes
-            span.set_attributes({
-                "endpoint": "/call-service-b",
-                "target_service": "service-b"
-            })
-            
+            span.set_attributes(
+                {"endpoint": "/call-service-b", "target_service": "service-b"}
+            )
+
             # Prepare headers for context propagation
             carrier = {}
             TraceContextTextMapPropagator().inject(carrier)
             headers = {**carrier}
-            
-            response = requests.get(
-                "http://service-b:8001/process",
-                headers=headers
-            )
+
+            # Fake a delay
+            time.sleep(2)
+
+            response = requests.get("http://service-b:8001/process", headers=headers)
             response.raise_for_status()
-            
-            span.set_attributes({
-                "http.status_code": response.status_code,
-                "http.response_content_length": len(response.content)
-            })
+
+            span.set_attributes(
+                {
+                    "http.status_code": response.status_code,
+                    "http.response_content_length": len(response.content),
+                }
+            )
             return {"service_b_response": response.json()}
-            
+
         except Exception as e:
             span.set_status(Status(StatusCode.ERROR))
             span.record_exception(e)

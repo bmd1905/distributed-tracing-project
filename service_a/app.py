@@ -2,7 +2,7 @@ import asyncio
 import os
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from opentelemetry import trace
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.trace.status import Status, StatusCode
+from opentelemetry.propagate import extract, inject
 
 # Configure tracing with sampling
 sampler = ParentBasedTraceIdRatio(0.3)  # Sample 30% of traces
@@ -41,9 +42,12 @@ http_client = httpx.AsyncClient()
 
 
 @app.get("/call-service-b")
-async def call_service_b():
+async def call_service_b(request: Request):
+    # Extract context from incoming request
+    context = extract(request.headers)
     tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span("call_service_b") as span:
+    
+    with tracer.start_as_current_span("call_service_b", context=context) as span:
         try:
             span.set_attributes(
                 {"endpoint": "/call-service-b", "target_service": "service-b"}
@@ -53,12 +57,12 @@ async def call_service_b():
             await asyncio.sleep(1)
 
             # Prepare headers for context propagation
-            carrier = {}
-            TraceContextTextMapPropagator().inject(carrier)
+            headers = {}
+            inject(headers)  # This will inject W3C trace context headers
 
             # Use the shared http_client instance
             response = await http_client.get(
-                "http://service-b:8001/process", headers=carrier
+                "http://service-b:8001/process", headers=headers
             )
             response.raise_for_status()
 

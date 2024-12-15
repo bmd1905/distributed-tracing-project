@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from opentelemetry import trace
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from opentelemetry.trace.status import Status, StatusCode
+from opentelemetry.propagate import extract
 
 # Configure tracing with sampling
 sampler = ParentBasedTraceIdRatio(0.3)
@@ -36,9 +37,12 @@ RequestsInstrumentor().instrument()
 
 
 @app.get("/process")
-async def process():
+async def process(request: Request):
+    # Extract context from incoming request
+    context = extract(request.headers)
     tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span("process_request") as span:
+    
+    with tracer.start_as_current_span("process_request", context=context) as span:
         try:
             span.set_attributes({"endpoint": "/process", "processing.type": "standard"})
 

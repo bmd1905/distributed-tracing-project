@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from opentelemetry.propagate import inject, set_global_textmap
 
 # Service registry (in production, use service discovery like Consul/etcd)
 SERVICE_REGISTRY = {
@@ -48,6 +49,9 @@ FastAPIInstrumentor.instrument_app(app)
 
 # Initialize HTTP client
 http_client = httpx.AsyncClient(timeout=30.0)
+
+# Set W3C TraceContext as the global propagator
+set_global_textmap(TraceContextTextMapPropagator())
 
 
 async def check_circuit_breaker(service: str) -> bool:
@@ -115,9 +119,7 @@ async def gateway_route(service: str, path: str, request: Request):
 
             # Prepare headers with trace context
             headers = dict(request.headers)
-            carrier = {}
-            TraceContextTextMapPropagator().inject(carrier)
-            headers.update(carrier)
+            inject(headers)  # This will inject W3C trace context headers
 
             # Forward the request
             url = f"{endpoint}/{path}"

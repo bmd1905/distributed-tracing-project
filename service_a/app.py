@@ -24,7 +24,7 @@ trace.set_tracer_provider(
         sampler=sampler
     )
 )
-jaeger_exporter = JaegerExporter(agent_host_name="localhost", agent_port=6831)
+jaeger_exporter = JaegerExporter(agent_host_name="jaeger", agent_port=6831)
 trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(jaeger_exporter))
 
 # Initialize FastAPI
@@ -50,7 +50,7 @@ def call_service_b():
             headers = {**carrier}
             
             response = requests.get(
-                "http://localhost:8001/process",
+                "http://service-b:8001/process",
                 headers=headers
             )
             response.raise_for_status()

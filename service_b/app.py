@@ -1,5 +1,5 @@
+import asyncio
 import os
-import time
 
 from fastapi import FastAPI
 from opentelemetry import trace
@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from opentelemetry.trace.status import Status, StatusCode
 
 # Configure tracing with sampling
-sampler = ParentBasedTraceIdRatio(0.3)  # Sample 30% of traces
+sampler = ParentBasedTraceIdRatio(0.3)
 trace.set_tracer_provider(
     TracerProvider(
         resource=Resource.create(
@@ -36,14 +36,14 @@ RequestsInstrumentor().instrument()
 
 
 @app.get("/process")
-def process():
+async def process():
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span("process_request") as span:
         try:
             span.set_attributes({"endpoint": "/process", "processing.type": "standard"})
 
-            # Simulate some work
-            time.sleep(2)
+            # Use asyncio.sleep instead of time.sleep
+            await asyncio.sleep(1)
             result = {"message": "Processing in Service B"}
 
             span.set_attributes(

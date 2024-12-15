@@ -1,7 +1,7 @@
+import asyncio
 import os
-import time
 
-import requests
+import httpx
 from fastapi import FastAPI
 from opentelemetry import trace
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
@@ -25,7 +25,7 @@ trace.set_tracer_provider(
                 "deployment.environment": os.getenv("DEPLOYMENT_ENV", "development"),
             }
         ),
-        sampler=sampler,
+        sampler=sampler,  # Enable the sampler
     )
 )
 jaeger_exporter = JaegerExporter(agent_host_name="jaeger", agent_port=6831)
@@ -36,26 +36,30 @@ app = FastAPI()
 FastAPIInstrumentor.instrument_app(app)
 RequestsInstrumentor().instrument()
 
+# Create a single httpx client instance
+http_client = httpx.AsyncClient()
+
 
 @app.get("/call-service-b")
-def call_service_b():
+async def call_service_b():
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span("call_service_b") as span:
         try:
-            # Add meaningful attributes
             span.set_attributes(
                 {"endpoint": "/call-service-b", "target_service": "service-b"}
             )
 
+            # Fake a delay
+            await asyncio.sleep(1)
+
             # Prepare headers for context propagation
             carrier = {}
             TraceContextTextMapPropagator().inject(carrier)
-            headers = {**carrier}
 
-            # Fake a delay
-            time.sleep(2)
-
-            response = requests.get("http://service-b:8001/process", headers=headers)
+            # Use the shared http_client instance
+            response = await http_client.get(
+                "http://service-b:8001/process", headers=carrier
+            )
             response.raise_for_status()
 
             span.set_attributes(
@@ -70,3 +74,9 @@ def call_service_b():
             span.set_status(Status(StatusCode.ERROR))
             span.record_exception(e)
             raise
+
+
+# Add cleanup for http_client
+@app.on_event("shutdown")
+async def shutdown_event():
+    await http_client.aclose()
